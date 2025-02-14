@@ -8,28 +8,24 @@ from webauthn import verify_registration_response, verify_authentication_respons
 from pydantic import BaseModel
 from typing import Dict
 from datetime import datetime, timedelta
+from fastapi.responses import HTMLResponse
 
-
-port = int(os.getenv("PORT", "8000"))  # Get PORT from Render, default to 8000
-
-if __name__ == "__main__":
-    print(f"Starting server on port {port}...")  # Debugging line
-    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
-
+# Get PORT from environment (Render provides this dynamically)
+port = int(os.getenv("PORT", "8000"))
 
 # Initialize FastAPI app
 app = FastAPI()
 security = HTTPBearer()
 
 # ✅ **JWT Configuration**
-SECRET_KEY = os.environ.get("SECRET_KEY", "your_secret_key")  # Haal secret uit de omgeving voor veiligheid
+SECRET_KEY = os.environ.get("SECRET_KEY", "your_secret_key")  # Secure storage of secret key
 ALGORITHM = "HS256"
 
-# ✅ **In-memory database voor face authentication**
+# ✅ **In-memory database for face authentication**
 users_db: Dict[str, str] = {}
-challenges: Dict[str, str] = {}  # Opslag van gegenereerde challenges per gebruiker
+challenges: Dict[str, str] = {}  # Store generated challenges per user
 
-# ✅ **Pydantic model voor WebAuthn authenticatie**
+# ✅ **Pydantic model for WebAuthn authentication**
 class FaceAuthRequest(BaseModel):
     credential: dict
 
@@ -38,10 +34,10 @@ class FaceAuthRequest(BaseModel):
 def register_face(request: FaceAuthRequest):
     try:
         user_id = "user@example.com"
-        expected_challenge = challenges.get(user_id)
+        expected_challenge = challenges.pop(user_id, None)  # Get and remove challenge
 
         if not expected_challenge:
-            raise HTTPException(status_code=400, detail="Geen challenge gevonden voor deze gebruiker")
+            raise HTTPException(status_code=400, detail="No challenge found for this user")
 
         credential_data = verify_registration_response(
             credential=request.credential,
@@ -49,9 +45,9 @@ def register_face(request: FaceAuthRequest):
             expected_rp_id="ai-auth.onrender.com"
         )
 
-        # ✅ Opslaan van gebruiker en credential ID
+        # ✅ Save user and credential ID
         users_db[user_id] = credential_data.credential_id
-        return {"message": "Face authentication succesvol geregistreerd!"}
+        return {"message": "Face authentication successfully registered!"}
 
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -64,11 +60,11 @@ def verify_face(request: FaceAuthRequest):
         credential_id = users_db.get(user_id)
 
         if not credential_id:
-            raise HTTPException(status_code=401, detail="Geen registratie gevonden")
+            raise HTTPException(status_code=401, detail="No registration found")
 
-        expected_challenge = challenges.get(user_id)
+        expected_challenge = challenges.pop(user_id, None)  # Get and remove challenge
         if not expected_challenge:
-            raise HTTPException(status_code=401, detail="Geen challenge gevonden voor deze gebruiker")
+            raise HTTPException(status_code=401, detail="No challenge found for this user")
 
         verify_authentication_response(
             credential=request.credential,
@@ -77,12 +73,9 @@ def verify_face(request: FaceAuthRequest):
             credential_id=credential_id
         )
 
-        # ✅ Verwijder de gebruikte challenge
-        del challenges[user_id]
-
-        # ✅ Genereer JWT-token
+        # ✅ Generate JWT token
         token = generate_jwt(user_id)
-        return {"message": "Face verification succesvol!", "token": token}
+        return {"message": "Face verification successful!", "token": token}
 
     except Exception as e:
         raise HTTPException(status_code=401, detail=str(e))
@@ -97,7 +90,7 @@ def generate_jwt(email: str):
 @app.get("/generate-challenge")
 def generate_challenge():
     user_id = "user@example.com"
-    challenge = secrets.token_urlsafe(32)  # Veilige willekeurige challenge
+    challenge = secrets.token_urlsafe(32)  # Secure random challenge
     challenges[user_id] = challenge
     return {"challenge": challenge}
 
@@ -107,16 +100,18 @@ def protected_route(credentials: HTTPAuthorizationCredentials = Depends(security
     token = credentials.credentials
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return {"message": "Toegang verleend!", "user": payload["sub"]}
+        return {"message": "Access granted!", "user": payload["sub"]}
     except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token is verlopen")
+        raise HTTPException(status_code=401, detail="Token has expired")
     except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Ongeldig token")
+        raise HTTPException(status_code=401, detail="Invalid token")
 
-# ✅ **6️⃣ Health Check Route voor Render**
-from fastapi.responses import HTMLResponse
-
+# ✅ **6️⃣ Health Check Route for Render**
 @app.get("/", response_class=HTMLResponse)
 def home():
     return "<h1>AI Authentication API is Live 🚀</h1>"
 
+# ✅ **7️⃣ Correct Port Binding for Render**
+if __name__ == "__main__":
+    print(f"Starting server on port {port}...")  # Debugging line
+    uvicorn.run(app, host="0.0.0.0", port=port)
