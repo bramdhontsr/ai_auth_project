@@ -14,33 +14,33 @@ SECRET_KEY = "jouw_geheime_sleutel"
 ALGORITHM = "HS256"
 
 # Simpele database voor gezichtsherkenning
-users_db: Dict[str, str] = {}  # Slaat geregistreerde WebAuthn-credentials op
+users_db: Dict[str, str] = {}
 
 class FaceAuthRequest(BaseModel):
     credential: dict
 
-# 🔹 1️⃣ **Registreren van gezichtsherkenning**
+# 🔹 **1️⃣ REGISTRATIE VAN GEZICHTSHERKENNING**
 @app.post("/register-face")
 def register_face(request: FaceAuthRequest):
     try:
         credential_data = verify_registration_response(
             request.credential,
-            expected_challenge="123456",  # Moet in een echte app dynamisch zijn
-            expected_rp_id="jouwsite.com"
+            expected_challenge="123456",
+            expected_rp_id="ai-auth.onrender.com"  # Zorg dat dit klopt met je Render-domein!
         )
         
         # Opslaan van gebruikers-ID en sleutel
         users_db["gebruiker@example.com"] = credential_data.credential_id
-        return {"message": "Gezichtsherkenning geregistreerd!"}
+        return {"message": "Gezichtsherkenning succesvol geregistreerd!"}
 
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-# 🔹 2️⃣ **Gezichtsherkenning verificeren**
+# 🔹 **2️⃣ VERIFICATIE VAN GEZICHTSHERKENNING**
 @app.post("/verify-face")
 def verify_face(request: FaceAuthRequest):
     try:
-        user_id = "gebruiker@example.com"  # In een echte app moet dit dynamisch zijn
+        user_id = "gebruiker@example.com"
         credential_id = users_db.get(user_id)
 
         if not credential_id:
@@ -49,7 +49,7 @@ def verify_face(request: FaceAuthRequest):
         verify_authentication_response(
             request.credential,
             expected_challenge="123456",
-            expected_rp_id="jouwsite.com",
+            expected_rp_id="ai-auth.onrender.com",
             credential_id=credential_id
         )
 
@@ -60,13 +60,13 @@ def verify_face(request: FaceAuthRequest):
     except Exception as e:
         raise HTTPException(status_code=401, detail=str(e))
 
-# 🔹 3️⃣ **JWT Token Genereren**
+# 🔹 **3️⃣ JWT TOKEN GENEREREN**
 def generate_jwt(email: str):
     expiration = datetime.utcnow() + timedelta(hours=2)
     payload = {"sub": email, "exp": expiration}
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
-# 🔹 4️⃣ **Beveiligde route**
+# 🔹 **4️⃣ BEVEILIGDE ROUTE**
 @app.get("/protected")
 def protected_route(credentials: HTTPAuthorizationCredentials = Depends(security)):
     token = credentials.credentials
@@ -78,7 +78,7 @@ def protected_route(credentials: HTTPAuthorizationCredentials = Depends(security
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Ongeldig token")
 
-# Run de applicatie
+# Start de FastAPI server
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     uvicorn.run(app, host="0.0.0.0", port=port)
