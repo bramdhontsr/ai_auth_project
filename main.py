@@ -1,6 +1,7 @@
 import os
 import uvicorn
 import jwt
+import secrets
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from webauthn import verify_registration_response, verify_authentication_response
@@ -69,7 +70,14 @@ def generate_jwt(email: str):
     expiration = datetime.utcnow() + timedelta(hours=2)
     payload = {"sub": email, "exp": expiration}
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+challenges = {}
 
+@app.get("/generate-challenge")
+def generate_challenge():
+    user_id = "user@example.com"
+    challenge = secrets.token_urlsafe(32)  # Veilige willekeurige challenge
+    challenges[user_id] = challenge
+    return {"challenge": challenge}
 # ✅ **4️⃣ Protected Route**
 @app.get("/protected")
 def protected_route(credentials: HTTPAuthorizationCredentials = Depends(security)):
