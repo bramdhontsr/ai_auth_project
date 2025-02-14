@@ -91,6 +91,6 @@ def home():
 
 # ✅ **6️⃣ Fix Render's Port Binding Issue**
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))  # Ensure PORT is detected correctly
-    print(f"Starting server on port {port}...")
+    port = int(os.environ.get("PORT", 8000))  # Render assigns a dynamic port, use it
+    print(f"✅ Starting server on 0.0.0.0:{port} for Render...")
     uvicorn.run(app, host="0.0.0.0", port=port)
