@@ -90,5 +90,8 @@ def home():
     return "<h1>AI Authentication API is Live 🚀</h1>"
 
 # ✅ **6️⃣ Correct Port Binding for Render**
+
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    port = int(os.environ.get("PORT", 10000))  # Gebruik de juiste poort
+    uvicorn.run(app, host="0.0.0.0", port=port)
+
