@@ -9,6 +9,14 @@ from pydantic import BaseModel
 from typing import Dict
 from datetime import datetime, timedelta
 
+
+port = int(os.getenv("PORT", "8000"))  # Get PORT from Render, default to 8000
+
+if __name__ == "__main__":
+    print(f"Starting server on port {port}...")  # Debugging line
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
+
+
 # Initialize FastAPI app
 app = FastAPI()
 security = HTTPBearer()
@@ -112,7 +120,3 @@ from fastapi.responses import HTMLResponse
 def home():
     return "<h1>AI Authentication API is Live 🚀</h1>"
 
-# ✅ **7️⃣ Correcte Poortbinding voor Render**
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))  # Laat Render zelf de poort kiezen
-    uvicorn.run(app, host="0.0.0.0", port=port)
