@@ -114,5 +114,5 @@ def home():
 
 # ✅ **7️⃣ Correcte Poortbinding voor Render**
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))  # Gebruik juiste poort
+    port = int(os.environ.get("PORT", 8000))  # Laat Render zelf de poort kiezen
     uvicorn.run(app, host="0.0.0.0", port=port)
