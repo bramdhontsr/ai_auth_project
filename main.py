@@ -80,5 +80,5 @@ def protected_route(credentials: HTTPAuthorizationCredentials = Depends(security
 
 # Start de FastAPI server
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
+    port = int(os.environ.get("PORT", 8000))  # Zorg dat de juiste poort wordt gebruikt
     uvicorn.run(app, host="0.0.0.0", port=port)
