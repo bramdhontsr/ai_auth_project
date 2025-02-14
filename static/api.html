@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AI Authenticatie</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <h1>AI Authenticatie</h1>
+    <button onclick="fetchChallenge()">Genereer Challenge</button>
+    <p id="loading-challenge" class="loading">Bezig met laden...</p>
+    <p>Challenge: <span id="challenge">-</span></p>
+    <button onclick="verifyResponse()">Verifieer Antwoord</button>
+    <p id="loading-verification" class="loading">Bezig met verifiëren...</p>
+    <p id="result">-</p>
+    <script src="/static/script.js"></script>
+</body>
+</html>
