@@ -6,7 +6,7 @@ async function registerFace() {
 
         let publicKey = {
             challenge: Uint8Array.from(atob(challenge), c => c.charCodeAt(0)), // Converteer challenge correct
-            rp: { name: "https://thepraxisofeverything.com" },
+            rp: { name: "thepraxisofeverything.com", id: "thepraxisofeverything.com" },
             user: {
                 id: new Uint8Array(16),
                 name: "gebruiker@example.com",
@@ -23,7 +23,7 @@ async function registerFace() {
         let response = await fetch("/register-face", { // Correcte API-aanroep
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ credential: credential.response })
+            body: JSON.stringify({ credential: credential })
         });
 
         let data = await response.json();
@@ -46,7 +46,8 @@ async function loginWithFace() {
 
         let publicKey = {
             challenge: Uint8Array.from(atob(challenge), c => c.charCodeAt(0)), // Correcte challenge
-            allowCredentials: [{ type: "public-key", id: new Uint8Array(16) }]
+            allowCredentials: [{ type: "public-key", id: new Uint8Array(16) }],
+            timeout: 60000,
         };
 
         let credential = await navigator.credentials.get({ publicKey });
@@ -54,7 +55,7 @@ async function loginWithFace() {
         let response = await fetch("/verify-face", { // Correcte API-aanroep
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ credential: credential.response })
+            body: JSON.stringify({ credential: credential })
         });
 
         let data = await response.json();
@@ -62,7 +63,7 @@ async function loginWithFace() {
             localStorage.setItem("token", data.token); // Token opslaan
             window.location.href = "/dashboard.html"; // Doorsturen naar beveiligde pagina
         } else {
-            alert("Gezichtsverificatie mislukt");
+            alert("Gezichtsverificatie mislukt: " + data.detail);
         }
     } catch (error) {
         console.error("Verificatie mislukt", error);
@@ -74,6 +75,9 @@ async function loginWithFace() {
 async function fetchChallenge() {
     try {
         let response = await fetch("/generate-challenge");
+        if (!response.ok) {
+            throw new Error("Server gaf een fout bij het ophalen van de challenge.");
+        }
         let data = await response.json();
         return data.challenge;
     } catch (error) {
