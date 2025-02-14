@@ -1,87 +1,84 @@
-from fastapi import FastAPI, Depends, HTTPException
-from fastapi.responses import JSONResponse, HTMLResponse
-from fastapi.staticfiles import StaticFiles
-import numpy as np
-import random
-from sklearn.ensemble import RandomForestClassifier
-import secrets
+import os
+import uvicorn
+import jwt
+from fastapi import FastAPI, HTTPException, Depends
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from webauthn import verify_registration_response, verify_authentication_response
+from pydantic import BaseModel
+from typing import Dict
+from datetime import datetime, timedelta
 
 app = FastAPI()
+security = HTTPBearer()
+SECRET_KEY = "jouw_geheime_sleutel"
+ALGORITHM = "HS256"
 
-# Mount static files (for HTML, JS)
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# Simpele database voor gezichtsherkenning
+users_db: Dict[str, str] = {}  # Slaat geregistreerde WebAuthn-credentials op
 
-# Simpele database voor gebruikers en sessies
-users_db = {}  # Opslag van e-mails en hun AI-authenticatie-challenge
-sessions = {}  # Sessies: email -> token
+class FaceAuthRequest(BaseModel):
+    credential: dict
 
-# AI-authenticatie (random exponenten)
-class A003558AIAuth:
-    def __init__(self):
-        self.period = 9
-        self.modulus_13 = [pow(2, i, 13) for i in range(self.period)]
-        self.modulus_21 = [pow(2, i, 21) for i in range(self.period)]
-        self.secret_exponent = random.choice(self.modulus_13)
-        index_in_mod13 = self.modulus_13.index(self.secret_exponent)
-        self.inverse_exponent = self.modulus_21[-(index_in_mod13 + 1)]
+# 🔹 1️⃣ **Registreren van gezichtsherkenning**
+@app.post("/register-face")
+def register_face(request: FaceAuthRequest):
+    try:
+        credential_data = verify_registration_response(
+            request.credential,
+            expected_challenge="123456",  # Moet in een echte app dynamisch zijn
+            expected_rp_id="jouwsite.com"
+        )
+        
+        # Opslaan van gebruikers-ID en sleutel
+        users_db["gebruiker@example.com"] = credential_data.credential_id
+        return {"message": "Gezichtsherkenning geregistreerd!"}
 
-    def generate_ai_challenge(self):
-        return np.array([self.secret_exponent, self.secret_exponent * 2, self.secret_exponent * 3])
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
-# Train AI model
-X, y = [], []
-for _ in range(500):
-    auth_system = A003558AIAuth()
-    X.append(auth_system.generate_ai_challenge())
-    y.append(auth_system.inverse_exponent)
+# 🔹 2️⃣ **Gezichtsherkenning verificeren**
+@app.post("/verify-face")
+def verify_face(request: FaceAuthRequest):
+    try:
+        user_id = "gebruiker@example.com"  # In een echte app moet dit dynamisch zijn
+        credential_id = users_db.get(user_id)
 
-X, y = np.array(X), np.array(y)
-model = RandomForestClassifier(n_estimators=100, random_state=42)
-model.fit(X, y)
+        if not credential_id:
+            raise HTTPException(status_code=401, detail="Geen registratie gevonden")
 
-# Beveiliging: verifieer token
-def verify_token(token: str):
-    for email, session_token in sessions.items():
-        if session_token == token:
-            return email
-    raise HTTPException(status_code=401, detail="Ongeldig token")
+        verify_authentication_response(
+            request.credential,
+            expected_challenge="123456",
+            expected_rp_id="jouwsite.com",
+            credential_id=credential_id
+        )
 
-# API: Registreren
-@app.post("/register")
-def register_user(email: str):
-    if email in users_db:
-        raise HTTPException(status_code=400, detail="Gebruiker bestaat al.")
-    
-    auth_system = A003558AIAuth()
-    challenge = auth_system.generate_ai_challenge().tolist()
-    users_db[email] = challenge
-    return {"message": "Geregistreerd. Gebruik deze challenge om in te loggen.", "challenge": challenge}
+        # 🔹 JWT-token genereren
+        token = generate_jwt(user_id)
+        return {"message": "Gezichtsverificatie geslaagd!", "token": token}
 
-# API: Inloggen
-@app.post("/login")
-def login_user(email: str, challenge: list[int]):
-    if email not in users_db:
-        raise HTTPException(status_code=400, detail="Gebruiker niet gevonden.")
-    
-    expected_challenge = users_db[email]
-    predicted_inverse = int(model.predict([challenge])[0])
-    expected_inverse = int(model.predict([expected_challenge])[0])
-    
-    if predicted_inverse == expected_inverse:
-        session_token = secrets.token_hex(16)
-        sessions[email] = session_token
-        return {"message": "Inloggen gelukt.", "token": session_token}
-    else:
-        raise HTTPException(status_code=401, detail="Verificatie mislukt.")
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=str(e))
 
-# API: Dashboard ophalen
-@app.get("/dashboard")
-def get_dashboard(token: str):
-    email = verify_token(token)
-    return JSONResponse(content={"dashboard": f"Welkom, {email}! Dit is jouw persoonlijke pagina."})
+# 🔹 3️⃣ **JWT Token Genereren**
+def generate_jwt(email: str):
+    expiration = datetime.utcnow() + timedelta(hours=2)
+    payload = {"sub": email, "exp": expiration}
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
-# API: Web GUI serveren
-@app.get("/", response_class=HTMLResponse)
-def serve_gui():
-    with open("static/index.html", "r") as file:
-        return HTMLResponse(content=file.read())
+# 🔹 4️⃣ **Beveiligde route**
+@app.get("/protected")
+def protected_route(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    token = credentials.credentials
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return {"message": "Je hebt toegang!", "user": payload["sub"]}
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token is verlopen")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Ongeldig token")
+
+# Run de applicatie
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 10000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
