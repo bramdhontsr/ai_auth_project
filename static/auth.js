@@ -13,6 +13,11 @@ async function registerFace() {
         timeout: 60000,
         attestation: "direct",
     };
+async function fetchChallenge() {
+    let response = await fetch("/generate-challenge");
+    let data = await response.json();
+    return data.challenge;
+}
 
     try {
         let credential = await navigator.credentials.create({ publicKey });
