@@ -8,77 +8,89 @@ from pydantic import BaseModel
 from typing import Dict
 from datetime import datetime, timedelta
 
+# Initialize FastAPI app
 app = FastAPI()
 security = HTTPBearer()
-SECRET_KEY = "jouw_geheime_sleutel"
+
+# JWT Configuration
+SECRET_KEY = "your_secret_key"
 ALGORITHM = "HS256"
 
-# Simpele database voor gezichtsherkenning
+# In-memory database for face authentication
 users_db: Dict[str, str] = {}
 
+# Pydantic model for WebAuthn authentication
 class FaceAuthRequest(BaseModel):
     credential: dict
 
-# 🔹 **1️⃣ REGISTRATIE VAN GEZICHTSHERKENNING**
+# ✅ **1️⃣ Face Registration Route**
 @app.post("/register-face")
 def register_face(request: FaceAuthRequest):
     try:
         credential_data = verify_registration_response(
-            request.credential,
+            credential=request.credential,
             expected_challenge="123456",
-            expected_rp_id="ai-auth.onrender.com"  # Zorg dat dit klopt met je Render-domein!
+            expected_rp_id="ai-auth.onrender.com"
         )
-        
-        # Opslaan van gebruikers-ID en sleutel
-        users_db["gebruiker@example.com"] = credential_data.credential_id
-        return {"message": "Gezichtsherkenning succesvol geregistreerd!"}
+
+        # Save user and credential ID
+        users_db["user@example.com"] = credential_data.credential_id
+        return {"message": "Face authentication successfully registered!"}
 
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-# 🔹 **2️⃣ VERIFICATIE VAN GEZICHTSHERKENNING**
+# ✅ **2️⃣ Face Verification Route**
 @app.post("/verify-face")
 def verify_face(request: FaceAuthRequest):
     try:
-        user_id = "gebruiker@example.com"
+        user_id = "user@example.com"
         credential_id = users_db.get(user_id)
 
         if not credential_id:
-            raise HTTPException(status_code=401, detail="Geen registratie gevonden")
+            raise HTTPException(status_code=401, detail="No registration found")
 
         verify_authentication_response(
-            request.credential,
+            credential=request.credential,
             expected_challenge="123456",
             expected_rp_id="ai-auth.onrender.com",
             credential_id=credential_id
         )
 
-        # 🔹 JWT-token genereren
+        # ✅ Generate JWT token
         token = generate_jwt(user_id)
-        return {"message": "Gezichtsverificatie geslaagd!", "token": token}
+        return {"message": "Face verification successful!", "token": token}
 
     except Exception as e:
         raise HTTPException(status_code=401, detail=str(e))
 
-# 🔹 **3️⃣ JWT TOKEN GENEREREN**
+# ✅ **3️⃣ JWT Token Generation**
 def generate_jwt(email: str):
     expiration = datetime.utcnow() + timedelta(hours=2)
     payload = {"sub": email, "exp": expiration}
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
-# 🔹 **4️⃣ BEVEILIGDE ROUTE**
+# ✅ **4️⃣ Protected Route**
 @app.get("/protected")
 def protected_route(credentials: HTTPAuthorizationCredentials = Depends(security)):
     token = credentials.credentials
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return {"message": "Je hebt toegang!", "user": payload["sub"]}
+        return {"message": "Access granted!", "user": payload["sub"]}
     except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token is verlopen")
+        raise HTTPException(status_code=401, detail="Token has expired")
     except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Ongeldig token")
+        raise HTTPException(status_code=401, detail="Invalid token")
 
-# Start de FastAPI server
+# ✅ **5️⃣ Add a Root Route (`/`) for Render Health Checks**
+from fastapi.responses import HTMLResponse
+
+@app.get("/", response_class=HTMLResponse)
+def home():
+    return "<h1>AI Authentication API is Live 🚀</h1>"
+
+# ✅ **6️⃣ Fix Render's Port Binding Issue**
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))  # Zorg dat de juiste poort wordt gebruikt
+    port = int(os.environ.get("PORT", 8000))  # Ensure PORT is detected correctly
+    print(f"Starting server on port {port}...")
     uvicorn.run(app, host="0.0.0.0", port=port)
