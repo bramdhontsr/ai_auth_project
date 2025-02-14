@@ -23,7 +23,7 @@ users_db: Dict[str, str] = {}
 class FaceAuthRequest(BaseModel):
     credential: dict
 
-# ✅ **1️⃣ Face Registration Route**
+# ✅ **Face Registration Route**
 @app.post("/register-face")
 def register_face(request: FaceAuthRequest):
     try:
@@ -40,7 +40,7 @@ def register_face(request: FaceAuthRequest):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-# ✅ **2️⃣ Face Verification Route**
+# ✅ **Face Verification Route**
 @app.post("/verify-face")
 def verify_face(request: FaceAuthRequest):
     try:
@@ -64,13 +64,13 @@ def verify_face(request: FaceAuthRequest):
     except Exception as e:
         raise HTTPException(status_code=401, detail=str(e))
 
-# ✅ **3️⃣ JWT Token Generation**
+# ✅ **JWT Token Generation**
 def generate_jwt(email: str):
     expiration = datetime.utcnow() + timedelta(hours=2)
     payload = {"sub": email, "exp": expiration}
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
-# ✅ **4️⃣ Protected Route**
+# ✅ **Protected Route**
 @app.get("/protected")
 def protected_route(credentials: HTTPAuthorizationCredentials = Depends(security)):
     token = credentials.credentials
@@ -82,15 +82,14 @@ def protected_route(credentials: HTTPAuthorizationCredentials = Depends(security
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-# ✅ **5️⃣ Add a Root Route (`/`) for Render Health Checks**
+# ✅ **Root Route (`/`) for Health Checks**
 from fastapi.responses import HTMLResponse
 
 @app.get("/", response_class=HTMLResponse)
 def home():
     return "<h1>AI Authentication API is Live 🚀</h1>"
 
-# ✅ **6️⃣ Fix Render's Port Binding Issue**
+# ✅ **Correcte Poortbinding voor Render**
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))  # Render assigns a dynamic port, use it
-    print(f"✅ Starting server on 0.0.0.0:{port} for Render...")
+    port = int(os.environ.get("PORT", 8000))  # Render geeft de poort via de omgevingsvariabele
     uvicorn.run(app, host="0.0.0.0", port=port)
