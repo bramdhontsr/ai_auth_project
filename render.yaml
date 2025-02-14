@@ -2,10 +2,12 @@ services:
   - type: web
     name: ai_auth
     env: python
-    plan: free  # Of kies een betaald plan indien nodig
+    plan: free
     buildCommand: "pip install -r requirements.txt"
     startCommand: "uvicorn main:app --host 0.0.0.0 --port $PORT"
     envVars:
       - key: PORT
         value: "10000"
+      - key: SECRET_KEY
+        value: "supersecretkey"
     autoDeploy: true
